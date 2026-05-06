@@ -13,12 +13,11 @@
     "typecheck": "tsc -p ."
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.131",
-    "@anthropic-ai/claude-agent-sdk-linux-x64": "^0.0.0",
     "@gravitykit/drip-mcp-server": "^1.0.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "dotenv": "^16.4.5",
     "next": "^16.2.4",
+    "openai": "^6.36.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "zod": "^4.4.3"

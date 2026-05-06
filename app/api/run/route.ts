@@ -5,21 +5,13 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-if (!process.env.ANTHROPIC_API_KEY && process.env.OPENROUTER_API_KEY) {
-  process.env.ANTHROPIC_API_KEY = process.env.OPENROUTER_API_KEY;
-  process.env.ANTHROPIC_BASE_URL =
-    process.env.ANTHROPIC_BASE_URL ?? "https://openrouter.ai/api";
-}
-
 export async function POST(req: Request) {
   const campaignId = process.env.DRIP_TEST_CAMPAIGN_ID;
   if (!campaignId) {
     return new Response("Missing DRIP_TEST_CAMPAIGN_ID", { status: 500 });
   }
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return new Response("Missing ANTHROPIC_API_KEY / OPENROUTER_API_KEY", {
-      status: 500,
-    });
+  if (!process.env.OPENROUTER_API_KEY) {
+    return new Response("Missing OPENROUTER_API_KEY", { status: 500 });
   }
 
   let lead: Lead;
