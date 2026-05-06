@@ -1,0 +1,31 @@
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# deps
+node_modules/
+
+# next
+.next/
+out/
+
+# build / TS cache
+dist/
+*.tsbuildinfo
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# editor
+.vscode/
+.idea/
+
+# docs (kept local only)
+*.md

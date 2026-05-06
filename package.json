@@ -1,0 +1,32 @@
+{
+  "name": "ak-drip",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "smoke": "tsx src/smoke.ts",
+    "diagnose": "tsx src/verify.ts",
+    "cli": "tsx src/index.ts",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.131",
+    "@gravitykit/drip-mcp-server": "^1.0.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "dotenv": "^16.4.5",
+    "next": "^16.2.4",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.5",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}
