@@ -30,13 +30,22 @@ const FRIENDLY: Record<string, string> = {
 const HIDE_FROM_LOG = new Set(["ToolSearch"]);
 
 const SAMPLE = {
-  email: "21106042.ayush.kargutkar@gmail.com",
-  first_name: "Ayush",
-  last_name: "Kargutkar",
-  company: "FSZT Partners",
-  role: "Founder",
+  email: "",
+  first_name: "",
+  last_name: "",
+  company: "",
+  role: "",
+  context: "",
+};
+
+const PLACEHOLDERS: Record<keyof typeof SAMPLE, string> = {
+  email: "lead@example.com",
+  first_name: "Enter lead's first name",
+  last_name: "Enter lead's last name",
+  company: "Their business / company name",
+  role: "e.g. Founder, CEO, Marketing Head",
   context:
-    "Building AI agents that integrate with email automation tools like Drip.",
+    "Brief context — what the lead does, why outreach makes sense, any relevant detail",
 };
 
 export default function Home() {
@@ -157,36 +166,42 @@ export default function Home() {
           <input
             value={lead.email}
             onChange={(e) => set("email", e.target.value)}
+            placeholder={PLACEHOLDERS.email}
             disabled={running}
           />
           <label>First name</label>
           <input
             value={lead.first_name}
             onChange={(e) => set("first_name", e.target.value)}
+            placeholder={PLACEHOLDERS.first_name}
             disabled={running}
           />
           <label>Last name</label>
           <input
             value={lead.last_name}
             onChange={(e) => set("last_name", e.target.value)}
+            placeholder={PLACEHOLDERS.last_name}
             disabled={running}
           />
           <label>Company</label>
           <input
             value={lead.company}
             onChange={(e) => set("company", e.target.value)}
+            placeholder={PLACEHOLDERS.company}
             disabled={running}
           />
           <label>Role</label>
           <input
             value={lead.role}
             onChange={(e) => set("role", e.target.value)}
+            placeholder={PLACEHOLDERS.role}
             disabled={running}
           />
           <label>Context</label>
           <textarea
             value={lead.context}
             onChange={(e) => set("context", e.target.value)}
+            placeholder={PLACEHOLDERS.context}
             disabled={running}
           />
           <button onClick={run} disabled={running || !lead.email}>

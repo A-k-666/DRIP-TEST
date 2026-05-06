@@ -78,6 +78,7 @@ input, textarea {
 
 input:focus, textarea:focus { border-color: #4f7cff; }
 input:disabled, textarea:disabled { opacity: 0.6; cursor: not-allowed; }
+input::placeholder, textarea::placeholder { color: #4a5468; }
 
 textarea { resize: vertical; min-height: 80px; }
 
