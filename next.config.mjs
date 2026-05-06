@@ -1,9 +1,4 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {
-  serverExternalPackages: [
-    "@gravitykit/drip-mcp-server",
-    "@modelcontextprotocol/sdk",
-  ],
-};
+const nextConfig = {};
 
 export default nextConfig;

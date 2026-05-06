@@ -3,7 +3,6 @@ import type {
   ChatCompletionMessageParam,
   ChatCompletionTool,
 } from "openai/resources/chat/completions";
-import { connectDripMcp } from "./drip-mcp";
 
 export type Lead = {
   email: string;
@@ -53,44 +52,134 @@ Rules:
 
 const MAX_TURNS = 12;
 
-const ALLOWED_MCP_TOOLS = new Set([
-  "drip_create_subscriber",
-  "drip_subscribe_to_campaign",
-  "drip_track_event",
-  "drip_list_campaigns",
-]);
+const TOOLS: ChatCompletionTool[] = [
+  {
+    type: "function",
+    function: {
+      name: "drip_create_subscriber",
+      description:
+        "Create or update a subscriber in Drip. Stores custom fields and applies tags.",
+      parameters: {
+        type: "object",
+        properties: {
+          email: { type: "string", description: "Lead email" },
+          custom_fields: {
+            type: "object",
+            description: "Custom fields like first_name, last_name, company, role, ai_subject, ai_body",
+          },
+          tags: {
+            type: "array",
+            items: { type: "string" },
+            description: "Tags to apply",
+          },
+        },
+        required: ["email"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "drip_subscribe_to_campaign",
+      description:
+        "Enroll a subscriber into a Drip Email Series Campaign with double_optin=false (skips confirmation, fires the first email immediately).",
+      parameters: {
+        type: "object",
+        properties: {
+          email: { type: "string" },
+          campaign_id: { type: "string" },
+        },
+        required: ["email", "campaign_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "drip_track_event",
+      description: "Track a custom behavioral event for a subscriber.",
+      parameters: {
+        type: "object",
+        properties: {
+          email: { type: "string" },
+          action: { type: "string", description: "Event name, e.g. agent_enrolled" },
+        },
+        required: ["email", "action"],
+      },
+    },
+  },
+];
 
-async function dripForceSubscribe(
-  email: string,
-  campaignId: string,
-): Promise<{ ok: boolean; preview: string }> {
+function dripHeaders() {
   const auth = Buffer.from((process.env.DRIP_API_KEY ?? "") + ":").toString("base64");
-  const base = `https://api.getdrip.com/v2/${process.env.DRIP_ACCOUNT_ID}`;
-  const headers = {
+  return {
     Authorization: `Basic ${auth}`,
     "Content-Type": "application/json",
     Accept: "application/json",
   };
-  const body = JSON.stringify({ subscribers: [{ email, double_optin: false }] });
-  let r = await fetch(`${base}/campaigns/${campaignId}/subscribers`, {
-    method: "POST",
-    headers,
-    body,
-  });
-  if (r.status === 422 && /already\s+subscribed/i.test(await r.clone().text())) {
-    await fetch(`${base}/subscribers/${encodeURIComponent(email)}/remove`, {
+}
+
+function dripBase() {
+  return `https://api.getdrip.com/v2/${process.env.DRIP_ACCOUNT_ID}`;
+}
+
+async function callDripTool(
+  name: string,
+  input: Record<string, unknown>,
+): Promise<{ ok: boolean; text: string }> {
+  const headers = dripHeaders();
+  const base = dripBase();
+
+  if (name === "drip_create_subscriber") {
+    const res = await fetch(`${base}/subscribers`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ campaign_id: campaignId }),
+      body: JSON.stringify({ subscribers: [input] }),
     });
-    r = await fetch(`${base}/campaigns/${campaignId}/subscribers`, {
+    const text = await res.text();
+    return { ok: res.status < 400, text: `HTTP ${res.status}\n${text.slice(0, 500)}` };
+  }
+
+  if (name === "drip_subscribe_to_campaign") {
+    const email = String(input.email ?? "");
+    const campaignId = String(input.campaign_id ?? "");
+    const body = JSON.stringify({ subscribers: [{ email, double_optin: false }] });
+
+    let res = await fetch(`${base}/campaigns/${campaignId}/subscribers`, {
       method: "POST",
       headers,
       body,
     });
+    if (
+      res.status === 422 &&
+      /already\s+subscribed/i.test(await res.clone().text())
+    ) {
+      await fetch(`${base}/subscribers/${encodeURIComponent(email)}/remove`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ campaign_id: campaignId }),
+      });
+      res = await fetch(`${base}/campaigns/${campaignId}/subscribers`, {
+        method: "POST",
+        headers,
+        body,
+      });
+    }
+    const text = await res.text();
+    return { ok: res.status < 400, text: `HTTP ${res.status}\n${text.slice(0, 500)}` };
   }
-  const text = await r.text();
-  return { ok: r.status < 400, preview: `HTTP ${r.status}\n${text.slice(0, 500)}` };
+
+  if (name === "drip_track_event") {
+    const res = await fetch(`${base}/events`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ events: [input] }),
+    });
+    const text = await res.text();
+    return { ok: res.status < 400, text: `HTTP ${res.status}\n${text.slice(0, 500)}` };
+  }
+
+  return { ok: false, text: `Unknown tool: ${name}` };
 }
 
 export async function* runAgent(
@@ -102,6 +191,10 @@ export async function* runAgent(
     yield { kind: "error", error: "Missing OPENROUTER_API_KEY in env" };
     return;
   }
+  if (!process.env.DRIP_API_KEY || !process.env.DRIP_ACCOUNT_ID) {
+    yield { kind: "error", error: "Missing DRIP_API_KEY or DRIP_ACCOUNT_ID" };
+    return;
+  }
 
   const model = process.env.OPENROUTER_MODEL ?? "anthropic/claude-sonnet-4.5";
   const client = new OpenAI({
@@ -109,43 +202,7 @@ export async function* runAgent(
     baseURL: "https://openrouter.ai/api/v1",
   });
 
-  let mcp: Awaited<ReturnType<typeof connectDripMcp>> | null = null;
-  try {
-    mcp = await connectDripMcp();
-    const { tools: mcpTools } = await mcp.listTools();
-
-    const tools: ChatCompletionTool[] = mcpTools
-      .filter((t) => ALLOWED_MCP_TOOLS.has(t.name))
-      .map((t) => ({
-        type: "function",
-        function: {
-          name: t.name,
-          description: t.description ?? "",
-          parameters: (t.inputSchema as Record<string, unknown>) ?? {
-            type: "object",
-            properties: {},
-          },
-        },
-      }));
-
-    tools.push({
-      type: "function",
-      function: {
-        name: "drip_force_subscribe",
-        description:
-          "Subscribe a lead to a Drip Email Series Campaign with double_optin=false (skips confirmation, fires first email immediately). Use INSTEAD of drip_subscribe_to_campaign when you want the email to send right away.",
-        parameters: {
-          type: "object",
-          properties: {
-            email: { type: "string" },
-            campaign_id: { type: "string" },
-          },
-          required: ["email", "campaign_id"],
-        },
-      },
-    });
-
-    const userMessage = `Lead JSON:
+  const userMessage = `Lead JSON:
 \`\`\`json
 ${JSON.stringify(lead, null, 2)}
 \`\`\`
@@ -154,17 +211,18 @@ Drip campaign_id to enroll into: ${campaignId}
 
 Run the full flow now.`;
 
-    const messages: ChatCompletionMessageParam[] = [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: userMessage },
-    ];
-    let lastText = "";
+  const messages: ChatCompletionMessageParam[] = [
+    { role: "system", content: SYSTEM_PROMPT },
+    { role: "user", content: userMessage },
+  ];
+  let lastText = "";
 
+  try {
     for (let turn = 0; turn < MAX_TURNS; turn++) {
       const response = await client.chat.completions.create({
         model,
         max_tokens: 4096,
-        tools,
+        tools: TOOLS,
         messages,
       });
 
@@ -200,12 +258,7 @@ Run the full flow now.`;
           input: parsedArgs,
         };
 
-        const result = await callTool(
-          tc.function.name,
-          parsedArgs,
-          mcp,
-          campaignId,
-        );
+        const result = await callDripTool(tc.function.name, parsedArgs);
 
         messages.push({
           role: "tool",
@@ -228,31 +281,5 @@ Run the full flow now.`;
       kind: "error",
       error: err instanceof Error ? err.message : String(err),
     };
-  } finally {
-    if (mcp) await mcp.close().catch(() => {});
-  }
-}
-
-async function callTool(
-  name: string,
-  input: Record<string, unknown>,
-  mcp: NonNullable<Awaited<ReturnType<typeof connectDripMcp>>>,
-  campaignId: string,
-): Promise<{ ok: boolean; text: string }> {
-  if (name === "drip_force_subscribe") {
-    const r = await dripForceSubscribe(
-      String(input.email ?? ""),
-      String(input.campaign_id ?? campaignId),
-    );
-    return { ok: r.ok, text: r.preview };
-  }
-
-  try {
-    const res = await mcp.callTool({ name, arguments: input });
-    const content = (res.content as Array<{ type: string; text?: string }>) ?? [];
-    const text = content.find((c) => c.type === "text")?.text ?? "";
-    return { ok: !res.isError, text };
-  } catch (err) {
-    return { ok: false, text: err instanceof Error ? err.message : String(err) };
   }
 }
