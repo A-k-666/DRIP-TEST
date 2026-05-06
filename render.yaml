@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: ak-drip
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: corepack enable && corepack prepare pnpm@10.20.0 --activate && pnpm install --frozen-lockfile && pnpm build
+    startCommand: pnpm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: ANTHROPIC_BASE_URL
+        value: https://openrouter.ai/api
+      - key: DRIP_API_KEY
+        sync: false
+      - key: DRIP_ACCOUNT_ID
+        sync: false
+      - key: DRIP_TEST_CAMPAIGN_ID
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
