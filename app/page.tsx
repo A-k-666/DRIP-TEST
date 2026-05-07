@@ -20,14 +20,14 @@ const STEPS: { key: StepKey; label: string; icon: string }[] = [
 ];
 
 const FRIENDLY: Record<string, string> = {
-  mcp__drip__drip_create_subscriber: "Add subscriber",
-  mcp__drip__drip_subscribe_to_campaign: "Enroll in campaign",
-  mcp__drip__drip_track_event: "Track event",
-  mcp__drip__drip_list_campaigns: "List campaigns",
-  ToolSearch: "Load tools",
+  drip_create_subscriber: "Add subscriber",
+  drip_subscribe_to_campaign: "Enroll in campaign",
+  drip_force_subscribe: "Enroll in campaign",
+  drip_track_event: "Track event",
+  drip_list_campaigns: "List campaigns",
 };
 
-const HIDE_FROM_LOG = new Set(["ToolSearch"]);
+const HIDE_FROM_LOG = new Set<string>();
 
 const SAMPLE = {
   email: "",
@@ -350,7 +350,7 @@ function derive(events: Evt[]) {
   }
 
   const createCall = events.find(
-    (e) => e.kind === "tool_use" && e.name === "mcp__drip__drip_create_subscriber",
+    (e) => e.kind === "tool_use" && e.name === "drip_create_subscriber",
   ) as Extract<Evt, { kind: "tool_use" }> | undefined;
 
   const cf = createCall?.input?.custom_fields;
@@ -361,15 +361,18 @@ function derive(events: Evt[]) {
   if (events.some((e) => e.kind === "thinking")) stepEmail = "running";
   if (email) stepEmail = "done";
 
-  const stepSubscriber = toolStatus.get("mcp__drip__drip_create_subscriber") ?? "pending";
-  const stepCampaign = toolStatus.get("mcp__drip__drip_subscribe_to_campaign") ?? "pending";
-  const stepEvent = toolStatus.get("mcp__drip__drip_track_event") ?? "pending";
+  const stepSubscriber = toolStatus.get("drip_create_subscriber") ?? "pending";
+  const stepCampaign =
+    toolStatus.get("drip_subscribe_to_campaign") ??
+    toolStatus.get("drip_force_subscribe") ??
+    "pending";
+  const stepEvent = toolStatus.get("drip_track_event") ?? "pending";
 
   let subscriberId: string | null = null;
   for (const e of events) {
     if (
       e.kind === "tool_result" &&
-      idToName.get(e.toolUseId) === "mcp__drip__drip_create_subscriber" &&
+      idToName.get(e.toolUseId) === "drip_create_subscriber" &&
       e.ok
     ) {
       const m = e.preview.match(/"id":\s*"([^"]+)"/);
@@ -380,12 +383,14 @@ function derive(events: Evt[]) {
   const tag = createCall?.input?.tags?.[0] ?? null;
 
   const campaignCall = events.find(
-    (e) => e.kind === "tool_use" && e.name === "mcp__drip__drip_subscribe_to_campaign",
+    (e) =>
+      e.kind === "tool_use" &&
+      (e.name === "drip_subscribe_to_campaign" || e.name === "drip_force_subscribe"),
   ) as Extract<Evt, { kind: "tool_use" }> | undefined;
   const campaignId = campaignCall?.input?.campaign_id ?? null;
 
   const eventCall = events.find(
-    (e) => e.kind === "tool_use" && e.name === "mcp__drip__drip_track_event",
+    (e) => e.kind === "tool_use" && e.name === "drip_track_event",
   ) as Extract<Evt, { kind: "tool_use" }> | undefined;
   const eventAction = eventCall?.input?.action ?? null;
 

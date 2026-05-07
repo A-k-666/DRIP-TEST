@@ -3,27 +3,15 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { runAgent, type Lead } from "./agent.js";
 
-if (!process.env.ANTHROPIC_API_KEY && process.env.OPENROUTER_API_KEY) {
-  process.env.ANTHROPIC_API_KEY = process.env.OPENROUTER_API_KEY;
-  process.env.ANTHROPIC_BASE_URL =
-    process.env.ANTHROPIC_BASE_URL ?? "https://openrouter.ai/api";
-}
-
 async function main() {
   const leadPath = process.argv[2] ?? "samples/lead.json";
   const campaignId = process.env.DRIP_TEST_CAMPAIGN_ID;
-  const llmKey = process.env.ANTHROPIC_API_KEY;
 
   if (!campaignId) {
     throw new Error("Missing DRIP_TEST_CAMPAIGN_ID in .env");
   }
-  if (!llmKey) {
-    throw new Error(
-      "Missing ANTHROPIC_API_KEY (or OPENROUTER_API_KEY) in .env — agent cannot run.",
-    );
-  }
-  if (process.env.ANTHROPIC_BASE_URL) {
-    console.log(`🌐 Using LLM endpoint: ${process.env.ANTHROPIC_BASE_URL}`);
+  if (!process.env.OPENROUTER_API_KEY) {
+    throw new Error("Missing OPENROUTER_API_KEY in .env — agent cannot run.");
   }
 
   const raw = readFileSync(resolve(process.cwd(), leadPath), "utf8");
